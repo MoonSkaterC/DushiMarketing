@@ -1,6 +1,16 @@
- import Link from 'next/link'
+import Link from 'next/link'
 
-export default function Blog() {
+async function getPosts() {
+  const res = await fetch(
+    'https://dushimarketing.wordpress.com/wp-json/wp/v2/posts?_fields=id,slug,title,excerpt,date,categories',
+    { next: { revalidate: 60 } }
+  )
+  return res.json()
+}
+
+export default async function Blog() {
+  const posts = await getPosts()
+
   return (
     <>
       <header className="nav">
@@ -19,24 +29,14 @@ export default function Blog() {
       </div>
 
       <div className="blog-list wrap">
-        <a href="#" className="post-row">
-          <span className="post-cat">CRM</span>
-          <span className="post-title">What is CRM & Salesforce? A plain-English guide</span>
-          <span className="post-meta">Mar 2026 · 5 min</span>
-          <span className="post-arrow">→</span>
-        </a>
-        <a href="#" className="post-row">
-          <span className="post-cat">AI & Tech</span>
-          <span className="post-title">What is natural language processing?</span>
-          <span className="post-meta">Mar 2026 · 4 min</span>
-          <span className="post-arrow">→</span>
-        </a>
-        <a href="#" className="post-row">
-          <span className="post-cat">Email</span>
-          <span className="post-title">Mailchimp vs. ConvertKit — which is right for you?</span>
-          <span className="post-meta">Coming soon</span>
-          <span className="post-arrow">→</span>
-        </a>
+        {posts.map((post: any) => (
+          <Link href={`/blog/${post.slug}`} key={post.id} className="post-row">
+            <span className="post-cat">Blog</span>
+            <span className="post-title">{post.title.rendered}</span>
+            <span className="post-meta">{new Date(post.date).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>
+            <span className="post-arrow">→</span>
+          </Link>
+        ))}
       </div>
 
       <footer className="footer">
