@@ -1,15 +1,54 @@
 import Link from 'next/link'
+import fs from 'fs/promises'
+import path from 'path'
 
-async function getPosts() {
-  const res = await fetch(
-    'https://dushimarketing.wordpress.com/wp-json/wp/v2/posts?_fields=id,slug,title,excerpt,date,categories',
-    { next: { revalidate: 60 } }
-  )
-  return res.json()
+const DATA_FILE = path.join(process.cwd(), 'data', 'posts.json')
+
+async function getLocalPosts() {
+  try {
+    const data = await fs.readFile(DATA_FILE, 'utf-8')
+    const posts = JSON.parse(data)
+    return posts.filter(p => p.published)
+  } catch {
+    return []
+  }
+}
+
+async function getWordPressPosts() {
+  try {
+    const res = await fetch(
+      'https://dushimarketing.wordpress.com/wp-json/wp/v2/posts?_fields=id,slug,title,excerpt,date,categories',
+      { next: { revalidate: 60 } }
+    )
+    return res.json()
+  } catch {
+    return []
+  }
 }
 
 export default async function Blog() {
-  const posts = await getPosts()
+  const [localPosts, wpPosts] = await Promise.all([getLocalPosts(), getWordPressPosts()])
+
+  const localRows = localPosts.map(p => ({
+    key: `local-${p.id}`,
+    slug: p.slug,
+    title: p.title,
+    date: p.date,
+    cat: 'Blog',
+  }))
+
+  const localSlugs = new Set(localPosts.map(p => p.slug))
+  const wpRows = wpPosts
+    .filter(p => !localSlugs.has(p.slug))
+    .map(p => ({
+      key: `wp-${p.id}`,
+      slug: p.slug,
+      title: p.title.rendered,
+      date: p.date,
+      cat: 'Blog',
+    }))
+
+  const allPosts = [...localRows, ...wpRows]
 
   return (
     <>
@@ -29,14 +68,17 @@ export default async function Blog() {
       </div>
 
       <div className="blog-list wrap">
-        {posts.map((post: any) => (
-          <Link href={`/blog/${post.slug}`} key={post.id} className="post-row">
-            <span className="post-cat">Blog</span>
-            <span className="post-title">{post.title.rendered}</span>
+        {allPosts.map((post) => (
+          <Link href={`/blog/${post.slug}`} key={post.key} className="post-row">
+            <span className="post-cat">{post.cat}</span>
+            <span className="post-title">{post.title}</span>
             <span className="post-meta">{new Date(post.date).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}</span>
             <span className="post-arrow">→</span>
           </Link>
         ))}
+        {allPosts.length === 0 && (
+          <p style={{ padding: '48px 0', color: 'var(--muted)' }}>No posts yet.</p>
+        )}
       </div>
 
       <footer className="footer">
